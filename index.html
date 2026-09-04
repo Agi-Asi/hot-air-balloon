@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Cappadocia Dawn Balloons</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a1020}
+body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;color:#fff}
+#uiPanel{position:absolute;left:14px;top:14px;width:268px;background:rgba(18,18,24,0.56);backdrop-filter:blur(16px) saturate(1.2);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.14);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.35);z-index:10;user-select:none}
+#uiHeader{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px 14px;border-bottom:1px solid rgba(255,255,255,0.08)}
+#uiHeaderTitle{font-size:12px;letter-spacing:0.14em;text-transform:uppercase;font-weight:700;opacity:0.9}
+#collapseToggleBtn{width:24px;height:24px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;cursor:pointer;font-size:14px;line-height:22px}
+#uiContent{padding:10px 12px 12px 12px}
+.controlRow{margin-bottom:10px}
+.controlRow:last-child{margin-bottom:0}
+.controlLabelRow{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;opacity:0.86}
+.controlLabelRow span.valueLabel{opacity:1;font-weight:700;text-transform:none;letter-spacing:0;font-size:12px;background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:20px}
+input[type=range]{-webkit-appearance:none;width:100%;height:22px;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:4px;background:rgba(255,255,255,0.18);border-radius:10px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;margin-top:-6px;box-shadow:0 1px 6px rgba(0,0,0,0.4);border:2px solid rgba(0,0,0,0.15)}
+input[type=range]::-moz-range-track{height:4px;background:rgba(255,255,255,0.18);border-radius:10px}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid rgba(0,0,0,0.15)}
+.buttonsRow{display:flex;gap:6px;margin-top:4px}
+.modeButton{flex:1;height:30px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.08);color:#fff;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:700;cursor:pointer;transition:0.18s}
+.modeButton.active{background:#fff;color:#111;border-color:#fff}
+.modeButton:hover{transform:translateY(-1px)}
+#resetViewBtn{flex:0.8}
+.collapsed #uiContent{display:none}
+.collapsed #uiHeader{border-bottom:none}
+canvas{display:block;width:100%;height:100%}
+#vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 90% at 50% 30%, transparent 60%, rgba(0,0,0,0.28) 100%);z-index:2}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="vignette"></div>
+<div id="uiPanel">
+  <div id="uiHeader">
+    <div id="uiHeaderTitle">Cappadocia • Dawn</div>
+    <button id="collapseToggleBtn">−</button>
+  </div>
+  <div id="uiContent">
+    <div class="controlRow">
+      <div class="controlLabelRow"><label>Time of Day</label><span id="timeOfDayValueLabel" class="valueLabel">Sunrise</span></div>
+      <input id="timeOfDaySlider" type="range" min="0" max="100" value="52"/>
+    </div>
+    <div class="controlRow">
+      <div class="controlLabelRow"><label>Wind Speed</label><span id="windSpeedValueLabel" class="valueLabel">2.4 m/s</span></div>
+      <input id="windSpeedSlider" type="range" min="0" max="100" value="32"/>
+    </div>
+    <div class="controlRow">
+      <div class="controlLabelRow"><label>Wind Direction</label><span id="windDirectionValueLabel" class="valueLabel">NE</span></div>
+      <input id="windDirectionSlider" type="range" min="0" max="360" value="48"/>
+    </div>
+    <div class="controlRow">
+      <div class="controlLabelRow"><label>Balloons</label><span id="balloonCountValueLabel" class="valueLabel">90</span></div>
+      <input id="balloonCountSlider" type="range" min="20" max="100" value="90" step="1"/>
+    </div>
+    <div class="controlRow buttonsRow">
+      <button id="rideAlongBtn" class="modeButton">Ride</button>
+      <button id="orbitModeBtn" class="modeButton active">Orbit</button>
+      <button id="resetViewBtn" class="modeButton">Reset</button>
+    </div>
+  </div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const sceneThree = new THREE.Scene();
+sceneThree.fog = new THREE.FogExp2(0x1a2a44, 0.0016);
+
+const perspectiveCamera = new THREE.PerspectiveCamera(56, window.innerWidth / window.innerHeight, 0.1, 3000);
+const webGLRenderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance' });
+webGLRenderer.setSize(window.innerWidth, window.innerHeight);
+webGLRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+webGLRenderer.shadowMap.enabled = true;
+webGLRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+webGLRenderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(webGLRenderer.domElement);
+
+const orbitControlInstance = new OrbitControls(perspectiveCamera, webGLRenderer.domElement);
+orbitControlInstance.enableDamping = true;
+orbitControlInstance.dampingFactor = 0.08;
+orbitControlInstance.minDistance = 20;
+orbitControlInstance.maxDistance = 700;
+orbitControlInstance.maxPolarAngle = Math.PI * 0.485;
+orbitControlInstance.minPolarAngle = 0.05;
+
+const ambientLightInstance = new THREE.AmbientLight(0x8a9cc0, 0.55);
+sceneThree.add(ambientLightInstance);
+
+const sunDirectionalLight = new THREE.DirectionalLight(0xffb26a, 1.15);
+sunDirectionalLight.position.set(200, 180, 120);
+sunDirectionalLight.castShadow = true;
+sunDirectionalLight.shadow.mapSize.set(2048,2048);
+sunDirectionalLight.shadow.camera.near = 10;
+sunDirectionalLight.shadow.camera.far = 1200;
+sunDirectionalLight.shadow.camera.left = -400;
+sunDirectionalLight.shadow.camera.right = 400;
+sunDirectionalLight.shadow.camera.top = 400;
+sunDirectionalLight.shadow.camera.bottom = -400;
+sunDirectionalLight.shadow.bias = -0.0003;
+sceneThree.add(sunDirectionalLight);
+
+const sunSphereGeometry = new THREE.SphereGeometry(18, 20, 20);
+const sunSphereMaterial = new THREE.MeshBasicMaterial({ color:0xff8a3d, transparent:true, opacity:0.95 });
+const sunSphereMesh = new THREE.Mesh(sunSphereGeometry, sunSphereMaterial);
+sceneThree.add(sunSphereMesh);
+
+const skyVertexShaderCode = `
+varying vec3 vWorldDirection;
+void main(){
+  vWorldDirection = normalize((modelMatrix * vec4(position,1.0)).xyz);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+}
+`;
+const skyFragmentShaderCode = `
+uniform vec3 topColorUniform;
+uniform vec3 bottomColorUniform;
+uniform vec3 sunDirectionUniform;
+uniform vec3 sunColorUniform;
+varying vec3 vWorldDirection;
+void main(){
+  float verticalFactor = vWorldDirection.y;
+  float mixFactor = smoothstep(-0.25, 0.65, verticalFactor);
+  vec3 skyGradient = mix(bottomColorUniform, topColorUniform, mixFactor);
+  float sunAlignment = dot(vWorldDirection, normalize(sunDirectionUniform));
+  float sunDisc = smoothstep(0.9975, 0.9996, sunAlignment);
+  float sunHalo = pow(max(sunAlignment,0.0), 120.0) * 2.2 + pow(max(sunAlignment,0.0), 16.0)*0.25;
+  skyGradient += sunColorUniform * sunHalo * 0.9;
+  skyGradient = mix(skyGradient, sunColorUniform, sunDisc*0.85);
+  float horizonBoost = pow(1.0 - abs(verticalFactor), 4.0) * 0.22;
+  skyGradient += bottomColorUniform * horizonBoost;
+  gl_FragColor = vec4(skyGradient, 1.0);
+}
+`;
+const skyDomeGeometry = new THREE.SphereGeometry(1800, 32, 20);
+const skyDomeMaterial = new THREE.ShaderMaterial({
+  vertexShader: skyVertexShaderCode,
+  fragmentShader: skyFragmentShaderCode,
+  uniforms:{
+    topColorUniform:{ value:new THREE.Color(0x2a4a7a) },
+    bottomColorUniform:{ value:new THREE.Color(0xff7a3d) },
+    sunDirectionUniform:{ value:new THREE.Vector3(0.3,0.2,0.8) },
+    sunColorUniform:{ value:new THREE.Color(0xffb26a) }
+  },
+  side: THREE.BackSide,
+  depthWrite:false
+});
+const skyDomeMesh = new THREE.Mesh(skyDomeGeometry, skyDomeMaterial);
+sceneThree.add(skyDomeMesh);
+
+function createStripeCanvasTexture(){
+  const stripeCanvas = document.createElement('canvas');
+  stripeCanvas.width = 256;
+  stripeCanvas.height = 256;
+  const stripeCanvasContext = stripeCanvas.getContext('2d');
+  stripeCanvasContext.fillStyle = '#ffffff';
+  stripeCanvasContext.fillRect(0,0,256,256);
+  const stripeCount = 7;
+  const stripeWidth = 256 / stripeCount;
+  for(let stripeIndex=0; stripeIndex<stripeCount; stripeIndex++){
+    const isDarkStripe = stripeIndex % 2 === 0;
+    stripeCanvasContext.fillStyle = isDarkStripe ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.0)';
+    stripeCanvasContext.fillRect(stripeIndex*stripeWidth, 0, stripeWidth*0.62, 256);
+  }
+  const verticalShadeGradient = stripeCanvasContext.createLinearGradient(0,0,0,256);
+  verticalShadeGradient.addColorStop(0,'rgba(255,255,255,0.18)');
+  verticalShadeGradient.addColorStop(0.5,'rgba(0,0,0,0.0)');
+  verticalShadeGradient.addColorStop(1,'rgba(0,0,0,0.22)');
+  stripeCanvasContext.fillStyle = verticalShadeGradient;
+  stripeCanvasContext.fillRect(0,0,256,256);
+  const canvasTextureInstance = new THREE.CanvasTexture(stripeCanvas);
+  canvasTextureInstance.wrapS = THREE.RepeatWrapping;
+  canvasTextureInstance.wrapT = THREE.RepeatWrapping;
+  canvasTextureInstance.colorSpace = THREE.SRGBColorSpace;
+  return canvasTextureInstance;
+}
+const balloonStripeTexture = createStripeCanvasTexture();
+
+const valleyPlaneGeometry = new THREE.PlaneGeometry(1400, 1400, 128, 128);
+const valleyPositionAttribute = valleyPlaneGeometry.attributes.position;
+for(let valleyVertexIndex=0; valleyVertexIndex<valleyPositionAttribute.count; valleyVertexIndex++){
+  const valleyX = valleyPositionAttribute.getX(valleyVertexIndex);
+  const valleyZ = valleyPositionAttribute.getY(valleyVertexIndex);
+  const distanceFromCenter = Math.sqrt(valleyX*valleyX + valleyZ*valleyZ);
+  const largeWave = Math.sin(valleyX*0.006) * 7.0 + Math.cos(valleyZ*0.007) * 6.0;
+  const mediumWave = Math.sin((valleyX+valleyZ)*0.012) * 3.5 + Math.cos(valleyX*0.02)*2.0;
+  const valleyDip = -Math.max(0, (1.0 - distanceFromCenter/520.0)) * 22.0;
+  const edgeRise = Math.pow(Math.min(1, distanceFromCenter/650), 2.2) * 35.0;
+  const noiseJitter = (Math.sin(valleyX*0.11)+Math.cos(valleyZ*0.13))*0.6;
+  const finalHeight = largeWave + mediumWave + valleyDip + edgeRise + noiseJitter;
+  valleyPositionAttribute.setZ(valleyVertexIndex, finalHeight);
+}
+valleyPlaneGeometry.computeVertexNormals();
+const valleyMaterial = new THREE.MeshStandardMaterial({ color:0xd7b18f, roughness:0.92, metalness:0.02 });
+const valleyMesh = new THREE.Mesh(valleyPlaneGeometry, valleyMaterial);
+valleyMesh.rotation.x = -Math.PI*0.5;
+valleyMesh.position.y = -12;
+valleyMesh.receiveShadow = true;
+sceneThree.add(valleyMesh);
+
+const distantMountainGeometry = new THREE.PlaneGeometry(3000, 500, 64, 12);
+const distantMountainPosAttr = distantMountainGeometry.attributes.position;
+for(let mountainVertexIndex=0; mountainVertexIndex<distantMountainPosAttr.count; mountainVertexIndex++){
+  const mountainX = distantMountainPosAttr.getX(mountainVertexIndex);
+  const mountainY = distantMountainPosAttr.getY(mountainVertexIndex);
+  if(mountainY > -50){
+    const mountainHeightNoise = Math.sin(mountainX*0.004)*45 + Math.cos(mountainX*0.009)*20 + Math.random()*10;
+    distantMountainPosAttr.setZ(mountainVertexIndex, mountainHeightNoise);
+  }
+}
+distantMountainGeometry.computeVertexNormals();
+const distantMountainMaterial = new THREE.MeshStandardMaterial({ color:0x8d6a4d, roughness:1, fog:true });
+const createMountainRing = (mountainRadius, mountainYPos)=>{
+  const mountainRingMesh = new THREE.Mesh(distantMountainGeometry, distantMountainMaterial);
+  mountainRingMesh.position.set(0, mountainYPos, -mountainRadius);
+  mountainRingMesh.rotation.x = 0;
+  return mountainRingMesh;
+};
+const northMountainMesh = createMountainRing(900, 40);
+const southMountainMesh = createMountainRing(-900, 35);
+southMountainMesh.rotation.y = Math.PI;
+const eastMountainMesh = createMountainRing(900, 45);
+eastMountainMesh.rotation.y = -Math.PI*0.5;
+eastMountainMesh.position.set(900,45,0);
+const westMountainMesh = createMountainRing(900, 38);
+westMountainMesh.rotation.y = Math.PI*0.5;
+westMountainMesh.position.set(-900,38,0);
+sceneThree.add(northMountainMesh, southMountainMesh, eastMountainMesh, westMountainMesh);
+
+const chimneyGroupContainer = new THREE.Group();
+sceneThree.add(chimneyGroupContainer);
+
+const sandstoneColorPalette = [0xe8c7a3, 0xd9a87c, 0xc99a6b, 0xb88c5a, 0xd2b48c, 0xe2b48a];
+const capRockColorPalette = [0x6b5d4f, 0x7a6a5a, 0x5f5348, 0x8a7a6a, 0x4a3f35];
+const caveBlackMaterial = new THREE.MeshStandardMaterial({ color:0x0c0a08, roughness:1, metalness:0 });
+
+function createSingleFairyChimney(chimneyX, chimneyZ, chimneyHeight, chimneyBaseRadius, chimneyHasCave){
+  const chimneyBodyGeometry = new THREE.CylinderGeometry(chimneyBaseRadius*0.28, chimneyBaseRadius, chimneyHeight, 7, 1, false);
+  chimneyBodyGeometry.translate(0, chimneyHeight*0.5, 0);
+  const chimneyBodyColorValue = sandstoneColorPalette[Math.floor(Math.random()*sandstoneColorPalette.length)];
+  const chimneyBodyMaterialInstance = new THREE.MeshStandardMaterial({ color:chimneyBodyColorValue, roughness:0.88, metalness:0.03 });
+  const chimneyBodyMesh = new THREE.Mesh(chimneyBodyGeometry, chimneyBodyMaterialInstance);
+  chimneyBodyMesh.castShadow = true;
+  chimneyBodyMesh.receiveShadow = true;
+  chimneyBodyMesh.position.set(chimneyX, 0, chimneyZ);
+  const capRockGeometry = new THREE.DodecahedronGeometry(chimneyBaseRadius*1.15, 0);
+  capRockGeometry.scale(1,0.55,1);
+  const capRockColorValue = capRockColorPalette[Math.floor(Math.random()*capRockColorPalette.length)];
+  const capRockMaterialInstance = new THREE.MeshStandardMaterial({ color:capRockColorValue, roughness:0.9, metalness:0.05 });
+  const capRockMesh = new THREE.Mesh(capRockGeometry, capRockMaterialInstance);
+  capRockMesh.position.set(chimneyX, chimneyHeight + chimneyBaseRadius*0.25, chimneyZ);
+  capRockMesh.rotation.set(Math.random()*0.4, Math.random()*Math.PI, Math.random()*0.3);
+  capRockMesh.castShadow = true;
+  capRockMesh.receiveShadow = true;
+  chimneyGroupContainer.add(chimneyBodyMesh);
+  chimneyGroupContainer.add(capRockMesh);
+  if(chimneyHasCave){
+    const caveGeometrySmall = new THREE.BoxGeometry(chimneyBaseRadius*0.6, chimneyBaseRadius*0.55, chimneyBaseRadius*0.35);
+    const caveMeshSmall = new THREE.Mesh(caveGeometrySmall, caveBlackMaterial);
+    const caveAngle = Math.random()*Math.PI*2;
+    const caveRadiusOffset = chimneyBaseRadius*0.55;
+    caveMeshSmall.position.set(
+      chimneyX + Math.cos(caveAngle)*caveRadiusOffset,
+      chimneyHeight*0.28 + Math.random()*chimneyHeight*0.25,
+      chimneyZ + Math.sin(caveAngle)*caveRadiusOffset
+    );
+    caveMeshSmall.lookAt(chimneyX, caveMeshSmall.position.y, chimneyZ);
+    chimneyGroupContainer.add(caveMeshSmall);
+    if(Math.random()<0.45){
+      const secondCaveGeometry = new THREE.BoxGeometry(chimneyBaseRadius*0.45, chimneyBaseRadius*0.4, 0.3);
+      const secondCaveMesh = new THREE.Mesh(secondCaveGeometry, caveBlackMaterial);
+      secondCaveMesh.position.set(
+        chimneyX + Math.cos(caveAngle+1.2)*caveRadiusOffset,
+        chimneyHeight*0.55,
+        chimneyZ + Math.sin(caveAngle+1.2)*caveRadiusOffset
+      );
+      secondCaveMesh.lookAt(chimneyX, secondCaveMesh.position.y, chimneyZ);
+      chimneyGroupContainer.add(secondCaveMesh);
+    }
+  }
+}
+
+for(let chimneyCreationIndex=0; chimneyCreationIndex<68; chimneyCreationIndex++){
+  const chimneyAngle = Math.random()*Math.PI*2;
+  const chimneyRadius = 40 + Math.random()*360 + Math.pow(Math.random(),2)*120;
+  const chimneyXpos = Math.cos(chimneyAngle)*chimneyRadius + (Math.random()-0.5)*40;
+  const chimneyZpos = Math.sin(chimneyAngle)*chimneyRadius + (Math.random()-0.5)*40;
+  if(Math.abs(chimneyXpos)<18 && Math.abs(chimneyZpos)<18) continue;
+  const chimneyHeightVal = 9 + Math.random()*28 + (chimneyRadius>250 ? Math.random()*6 : 0);
+  const chimneyBaseRadiusVal = 1.6 + Math.random()*2.8;
+  const chimneyHasCaveFlag = Math.random()<0.38;
+  createSingleFairyChimney(chimneyXpos, chimneyZpos, chimneyHeightVal, chimneyBaseRadiusVal, chimneyHasCaveFlag);
+}
+
+const maxBalloonInstances = 100;
+let activeBalloonInstances = 90;
+
+const envelopeBaseGeometry = new THREE.SphereGeometry(1, 20, 16);
+const envelopePosAttr = envelopeBaseGeometry.attributes.position;
+for(let envelopeVertexIndex=0; envelopeVertexIndex<envelopePosAttr.count; envelopeVertexIndex++){
+  const envX = envelopePosAttr.getX(envelopeVertexIndex);
+  const envY = envelopePosAttr.getY(envelopeVertexIndex);
+  const envZ = envelopePosAttr.getZ(envelopeVertexIndex);
+  if(envY < -0.18){
+    const bottomT = (envY + 1.0) / 0.82;
+    const clampedT = Math.max(0, bottomT);
+    const taperFactor = 0.18 + clampedT*0.82;
+    envelopePosAttr.setX(envelopeVertexIndex, envX * taperFactor);
+    envelopePosAttr.setZ(envelopeVertexIndex, envZ * taperFactor);
+  }
+}
+envelopeBaseGeometry.computeVertexNormals();
+envelopeBaseGeometry.scale(1, 1.32, 1);
+
+const basketBaseGeometry = new THREE.CylinderGeometry(0.28, 0.24, 0.32, 10);
+const flameBaseGeometry = new THREE.ConeGeometry(0.14, 0.42, 8);
+flameBaseGeometry.rotateX(Math.PI);
+
+const envelopeInstancedMaterial = new THREE.MeshStandardMaterial({
+  map: balloonStripeTexture,
+  roughness:0.62,
+  metalness:0.06,
+  color:0xffffff
+});
+const basketInstancedMaterial = new THREE.MeshStandardMaterial({ color:0x6b4423, roughness:0.95, metalness:0.0 });
+const flameInstancedMaterial = new THREE.MeshBasicMaterial({ color:0xff7a2a, transparent:true, opacity:0.95 });
+
+const envelopeInstancedMesh = new THREE.InstancedMesh(envelopeBaseGeometry, envelopeInstancedMaterial, maxBalloonInstances);
+envelopeInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+envelopeInstancedMesh.castShadow = true;
+envelopeInstancedMesh.receiveShadow = true;
+envelopeInstancedMesh.count = activeBalloonInstances;
+
+const basketInstancedMesh = new THREE.InstancedMesh(basketBaseGeometry, basketInstancedMaterial, maxBalloonInstances);
+basketInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+basketInstancedMesh.castShadow = true;
+basketInstancedMesh.receiveShadow = true;
+basketInstancedMesh.count = activeBalloonInstances;
+
+const flameInstancedMesh = new THREE.InstancedMesh(flameBaseGeometry, flameInstancedMaterial, maxBalloonInstances);
+flameInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+flameInstancedMesh.count = activeBalloonInstances;
+
+sceneThree.add(envelopeInstancedMesh, basketInstancedMesh, flameInstancedMesh);
+
+const balloonPositionArray = [];
+const balloonScaleArray = [];
+const balloonRiseSpeedArray = [];
+const balloonSwayPhaseArray = [];
+const balloonFlameTimerArray = [];
+const balloonFlameDurationArray = [];
+const balloonWindInfluenceArray = [];
+
+const balloonVibrantPalette = [
+  new THREE.Color(0xff3b30), new THREE.Color(0xff9500), new THREE.Color(0xffcc00),
+  new THREE.Color(0x4cd964), new THREE.Color(0x5ac8fa), new THREE.Color(0x5856d6),
+  new THREE.Color(0xff2d55), new THREE.Color(0xff6b35), new THREE.Color(0x00c7be),
+  new THREE.Color(0xffd60a), new THREE.Color(0xaf52de), new THREE.Color(0x30d158),
+  new THREE.Color(0x0a84ff), new THREE.Color(0xff9f0a), new THREE.Color(0xbf5af2),
+  new THREE.Color(0x64d2ff), new THREE.Color(0xff445a), new THREE.Color(0xf5d547)
+];
+
+const envelopeColorBuffer = new Float32Array(maxBalloonInstances*3);
+const envelopeInstanceColorAttribute = new THREE.InstancedBufferAttribute(envelopeColorBuffer, 3);
+envelopeInstancedMesh.instanceColor = envelopeInstanceColorAttribute;
+
+for(let balloonInitIndex=0; balloonInitIndex<maxBalloonInstances; balloonInitIndex++){
+  const balloonAngle = Math.random()*Math.PI*2;
+  const balloonRadius = Math.random()*320;
+  const balloonX = Math.cos(balloonAngle)*balloonRadius + (Math.random()-0.5)*40;
+  const balloonZ = Math.sin(balloonAngle)*balloonRadius + (Math.random()-0.5)*40;
+  let balloonY;
+  const altitudeRoll = Math.random();
+  if(altitudeRoll < 0.24) balloonY = 4 + Math.random()*14;
+  else if(altitudeRoll < 0.58) balloonY = 28 + Math.random()*48;
+  else balloonY = 85 + Math.random()*135;
+  balloonPositionArray.push(new THREE.Vector3(balloonX, balloonY, balloonZ));
+  balloonScaleArray.push(2.2 + Math.random()*1.9);
+  balloonRiseSpeedArray.push(0.22 + Math.random()*0.95);
+  balloonSwayPhaseArray.push(Math.random()*Math.PI*2);
+  balloonFlameTimerArray.push(Math.random()*4.5);
+  balloonFlameDurationArray.push(0);
+  balloonWindInfluenceArray.push(0.75 + Math.random()*0.5);
+  const basePaletteColor = balloonVibrantPalette[Math.floor(Math.random()*balloonVibrantPalette.length)].clone();
+  basePaletteColor.offsetHSL((Math.random()-0.5)*0.06, (Math.random()-0.5)*0.18, (Math.random()-0.5)*0.12);
+  envelopeInstancedMesh.setColorAt(balloonInitIndex, basePaletteColor);
+}
+envelopeInstancedMesh.instanceColor.needsUpdate = true;
+
+const dummyObjectForMatrix = new THREE.Object3D();
+const flamePointLight = new THREE.PointLight(0xff7a2a, 0, 18, 1.8);
+sceneThree.add(flamePointLight);
+
+function updateBalloonInstanceMatrices(){
+  for(let balloonMatrixIndex=0; balloonMatrixIndex<activeBalloonInstances; balloonMatrixIndex++){
+    const currentBalloonPosition = balloonPositionArray[balloonMatrixIndex];
+    const currentBalloonScale = balloonScaleArray[balloonMatrixIndex];
+    const swayOffsetX = Math.sin(performance.now()*0.00035 + balloonSwayPhaseArray[balloonMatrixIndex])*0.35;
+    const swayOffsetZ = Math.cos(performance.now()*0.00028 + balloonSwayPhaseArray[balloonMatrixIndex])*0.35;
+    dummyObjectForMatrix.position.set(currentBalloonPosition.x + swayOffsetX, currentBalloonPosition.y, currentBalloonPosition.z + swayOffsetZ);
+    dummyObjectForMatrix.rotation.set(
+      Math.sin(balloonSwayPhaseArray[balloonMatrixIndex])*0.08,
+      balloonSwayPhaseArray[balloonMatrixIndex]*0.1,
+      Math.cos(balloonSwayPhaseArray[balloonMatrixIndex])*0.07 + windVectorX*0.08
+    );
+    dummyObjectForMatrix.scale.setScalar(currentBalloonScale);
+    dummyObjectForMatrix.updateMatrix();
+    envelopeInstancedMesh.setMatrixAt(balloonMatrixIndex, dummyObjectForMatrix.matrix);
+
+    dummyObjectForMatrix.position.set(
+      currentBalloonPosition.x + swayOffsetX,
+      currentBalloonPosition.y - currentBalloonScale*2.18 - 0.32,
+      currentBalloonPosition.z + swayOffsetZ
+    );
+    dummyObjectForMatrix.rotation.set(0, balloonSwayPhaseArray[balloonMatrixIndex], 0);
+    dummyObjectForMatrix.scale.set(1,1,1);
+    dummyObjectForMatrix.updateMatrix();
+    basketInstancedMesh.setMatrixAt(balloonMatrixIndex, dummyObjectForMatrix.matrix);
+
+    if(balloonFlameDurationArray[balloonMatrixIndex] > 0){
+      dummyObjectForMatrix.position.set(
+        currentBalloonPosition.x + swayOffsetX,
+        currentBalloonPosition.y - currentBalloonScale*1.05,
+        currentBalloonPosition.z + swayOffsetZ
+      );
+      const flameFlickerScale = 0.85 + Math.random()*0.35;
+      dummyObjectForMatrix.scale.set(flameFlickerScale, flameFlickerScale*(0.9+Math.random()*0.3), flameFlickerScale);
+      dummyObjectForMatrix.rotation.set(0,0,0);
+      dummyObjectForMatrix.updateMatrix();
+      flameInstancedMesh.setMatrixAt(balloonMatrixIndex, dummyObjectForMatrix.matrix);
+    } else {
+      dummyObjectForMatrix.scale.set(0,0,0);
+      dummyObjectForMatrix.updateMatrix();
+      flameInstancedMesh.setMatrixAt(balloonMatrixIndex, dummyObjectForMatrix.matrix);
+    }
+  }
+  envelopeInstancedMesh.instanceMatrix.needsUpdate = true;
+  basketInstancedMesh.instanceMatrix.needsUpdate = true;
+  flameInstancedMesh.instanceMatrix.needsUpdate = true;
+}
+
+let windDirectionDegrees = 48;
+let windSpeedValue = 2.6;
+let windVectorX = Math.sin(THREE.MathUtils.degToRad(windDirectionDegrees))*windSpeedValue*0.6;
+let windVectorZ = Math.cos(THREE.MathUtils.degToRad(windDirectionDegrees))*windSpeedValue*0.6;
+
+function recalculateWindVector(){
+  const windRad = THREE.MathUtils.degToRad(windDirectionDegrees);
+  windVectorX = Math.sin(windRad) * windSpeedValue * 0.62;
+  windVectorZ = Math.cos(windRad) * windSpeedValue * 0.62;
+}
+
+let timeOfDayNormalized = 0.52;
+
+function applyTimeOfDayLighting(normalizedTime){
+  const clampedTime = THREE.MathUtils.clamp(normalizedTime, 0, 1);
+  let topColorResult, bottomColorResult, fogColorResult, sunColorResult, ambientColorResult, sunIntensityResult, ambientIntensityResult, sunElevationDegrees;
+  if(clampedTime < 0.5){
+    const segmentT = clampedTime / 0.5;
+    topColorResult = new THREE.Color(0x0a1020).lerp(new THREE.Color(0x2a4a7a), segmentT);
+    bottomColorResult = new THREE.Color(0x152040).lerp(new THREE.Color(0xff7a3d), segmentT);
+    fogColorResult = new THREE.Color(0x0a1020).lerp(new THREE.Color(0xff8a5a), segmentT);
+    sunColorResult = new THREE.Color(0xff6a30).lerp(new THREE.Color(0xff9a4a), segmentT);
+    ambientColorResult = new THREE.Color(0x2a3a5a).lerp(new THREE.Color(0x8a6a5a), segmentT);
+    sunIntensityResult = THREE.MathUtils.lerp(0.08, 1.25, segmentT);
+    ambientIntensityResult = THREE.MathUtils.lerp(0.22, 0.72, segmentT);
+    sunElevationDegrees = THREE.MathUtils.lerp(-10, 8, segmentT);
+  } else {
+    const segmentT = (clampedTime - 0.5) / 0.5;
+    topColorResult = new THREE.Color(0x2a4a7a).lerp(new THREE.Color(0x6baed6), segmentT);
+    bottomColorResult = new THREE.Color(0xff7a3d).lerp(new THREE.Color(0xffcf8a), segmentT);
+    fogColorResult = new THREE.Color(0xff8a5a).lerp(new THREE.Color(0xc2d8e8), segmentT);
+    sunColorResult = new THREE.Color(0xff9a4a).lerp(new THREE.Color(0xfff4d6), segmentT);
+    ambientColorResult = new THREE.Color(0x8a6a5a).lerp(new THREE.Color(0xffffff), segmentT);
+    sunIntensityResult = THREE.MathUtils.lerp(1.25, 1.65, segmentT);
+    ambientIntensityResult = THREE.MathUtils.lerp(0.72, 1.05, segmentT);
+    sunElevationDegrees = THREE.MathUtils.lerp(8, 48, segmentT);
+  }
+  skyDomeMaterial.uniforms.topColorUniform.value.copy(topColorResult);
+  skyDomeMaterial.uniforms.bottomColorUniform.value.copy(bottomColorResult);
+  skyDomeMaterial.uniforms.sunColorUniform.value.copy(sunColorResult);
+  const sunElevationRad = THREE.MathUtils.degToRad(sunElevationDegrees);
+  const sunAzimuthRad = THREE.MathUtils.degToRad(-28);
+  const sunDirX = Math.cos(sunElevationRad) * Math.sin(sunAzimuthRad);
+  const sunDirY = Math.sin(sunElevationRad);
+  const sunDirZ = Math.cos(sunElevationRad) * Math.cos(sunAzimuthRad);
+  const computedSunDirection = new THREE.Vector3(sunDirX, sunDirY, sunDirZ);
+  skyDomeMaterial.uniforms.sunDirectionUniform.value.copy(computedSunDirection);
+  sceneThree.fog.color.copy(fogColorResult);
+  webGLRenderer.setClearColor(fogColorResult, 1);
+  sunDirectionalLight.color.copy(sunColorResult);
+  sunDirectionalLight.intensity = sunIntensityResult;
+  sunDirectionalLight.position.copy(computedSunDirection).multiplyScalar(650);
+  ambientLightInstance.color.copy(ambientColorResult);
+  ambientLightInstance.intensity = ambientIntensityResult;
+  sunSphereMesh.position.copy(computedSunDirection).multiplyScalar(1200);
+  sunSphereMesh.material.color.copy(sunColorResult);
+  const sunVisibleFactor = THREE.MathUtils.clamp((sunElevationDegrees + 10)/18, 0, 1);
+  sunSphereMesh.visible = sunVisibleFactor > 0.02;
+  sunSphereMesh.scale.setScalar(1 + sunVisibleFactor*0.6);
+}
+
+const timeOfDaySliderElement = document.getElementById('timeOfDaySlider');
+const timeOfDayValueLabelElement = document.getElementById('timeOfDayValueLabel');
+const windSpeedSliderElement = document.getElementById('windSpeedSlider');
+const windSpeedValueLabelElement = document.getElementById('windSpeedValueLabel');
+const windDirectionSliderElement = document.getElementById('windDirectionSlider');
+const windDirectionValueLabelElement = document.getElementById('windDirectionValueLabel');
+const balloonCountSliderElement = document.getElementById('balloonCountSlider');
+const balloonCountValueLabelElement = document.getElementById('balloonCountValueLabel');
+const rideAlongButtonElement = document.getElementById('rideAlongBtn');
+const orbitModeButtonElement = document.getElementById('orbitModeBtn');
+const resetViewButtonElement = document.getElementById('resetViewBtn');
+const collapseToggleButtonElement = document.getElementById('collapseToggleBtn');
+const uiPanelElement = document.getElementById('uiPanel');
+
+function formatWindDirectionLabel(degrees){
+  const normalizedDeg = ((degrees % 360) + 360) % 360;
+  if(normalizedDeg < 22.5 || normalizedDeg >= 337.5) return 'N';
+  if(normalizedDeg < 67.5) return 'NE';
+  if(normalizedDeg < 112.5) return 'E';
+  if(normalizedDeg < 157.5) return 'SE';
+  if(normalizedDeg < 202.5) return 'S';
+  if(normalizedDeg < 247.5) return 'SW';
+  if(normalizedDeg < 292.5) return 'W';
+  return 'NW';
+}
+
+let currentCameraMode = 'orbit';
+let rideAlongBalloonIndex = 2;
+let rideLookYawAngle = 0.15;
+let rideLookPitchAngle = 0.08;
+let pointerIsDragging = false;
+let lastPointerClientX = 0;
+let lastPointerClientY = 0;
+
+function setCameraMode(newMode){
+  currentCameraMode = newMode;
+  if(newMode === 'orbit'){
+    orbitModeButtonElement.classList.add('active');
+    rideAlongButtonElement.classList.remove('active');
+    orbitControlInstance.enabled = true;
+    document.body.style.cursor = '';
+  } else {
+    rideAlongButtonElement.classList.add('active');
+    orbitModeButtonElement.classList.remove('active');
+    orbitControlInstance.enabled = false;
+    rideAlongBalloonIndex = Math.floor(Math.random()*Math.min(activeBalloonInstances, 12));
+  }
+}
+
+function resetToClassicValleyViewpoint(){
+  setCameraMode('orbit');
+  perspectiveCamera.position.set(42, 108, 342);
+  orbitControlInstance.target.set(0, 28, -18);
+  orbitControlInstance.update();
+}
+
+resetToClassicValleyViewpoint();
+
+timeOfDaySliderElement.addEventListener('input', ()=>{
+  timeOfDayNormalized = parseInt(timeOfDaySliderElement.value,10)/100;
+  let timeLabelText = 'Sunrise';
+  if(timeOfDayNormalized < 0.33) timeLabelText = 'Pre-dawn';
+  else if(timeOfDayNormalized < 0.66) timeLabelText = 'Sunrise';
+  else timeLabelText = 'Morning';
+  timeOfDayValueLabelElement.textContent = timeLabelText;
+  applyTimeOfDayLighting(timeOfDayNormalized);
+});
+
+windSpeedSliderElement.addEventListener('input', ()=>{
+  const windSpeedSliderPercent = parseInt(windSpeedSliderElement.value,10);
+  windSpeedValue = (windSpeedSliderPercent/100)*8.0;
+  windSpeedValueLabelElement.textContent = windSpeedValue.toFixed(1) + ' m/s';
+  recalculateWindVector();
+});
+
+windDirectionSliderElement.addEventListener('input', ()=>{
+  windDirectionDegrees = parseInt(windDirectionSliderElement.value,10);
+  windDirectionValueLabelElement.textContent = formatWindDirectionLabel(windDirectionDegrees);
+  recalculateWindVector();
+});
+
+balloonCountSliderElement.addEventListener('input', ()=>{
+  activeBalloonInstances = parseInt(balloonCountSliderElement.value,10);
+  balloonCountValueLabelElement.textContent = activeBalloonInstances.toString();
+  envelopeInstancedMesh.count = activeBalloonInstances;
+  basketInstancedMesh.count = activeBalloonInstances;
+  flameInstancedMesh.count = activeBalloonInstances;
+});
+
+rideAlongButtonElement.addEventListener('click', ()=> setCameraMode('ride'));
+orbitModeButtonElement.addEventListener('click', ()=> setCameraMode('orbit'));
+resetViewButtonElement.addEventListener('click', ()=> resetToClassicValleyViewpoint());
+
+collapseToggleButtonElement.addEventListener('click', ()=>{
+  uiPanelElement.classList.toggle('collapsed');
+  collapseToggleButtonElement.textContent = uiPanelElement.classList.contains('collapsed') ? '+' : '−';
+});
+
+webGLRenderer.domElement.addEventListener('pointerdown', (pointerDownEvent)=>{
+  if(currentCameraMode !== 'ride') return;
+  pointerIsDragging = true;
+  lastPointerClientX = pointerDownEvent.clientX;
+  lastPointerClientY = pointerDownEvent.clientY;
+  webGLRenderer.domElement.setPointerCapture(pointerDownEvent.pointerId);
+});
+webGLRenderer.domElement.addEventListener('pointerup', (pointerUpEvent)=>{
+  pointerIsDragging = false;
+  try{ webGLRenderer.domElement.releasePointerCapture(pointerUpEvent.pointerId); }catch(e){}
+});
+webGLRenderer.domElement.addEventListener('pointermove', (pointerMoveEvent)=>{
+  if(!pointerIsDragging || currentCameraMode !== 'ride') return;
+  const deltaX = pointerMoveEvent.clientX - lastPointerClientX;
+  const deltaY = pointerMoveEvent.clientY - lastPointerClientY;
+  rideLookYawAngle -= deltaX * 0.0045;
+  rideLookPitchAngle += deltaY * 0.0042;
+  rideLookPitchAngle = THREE.MathUtils.clamp(rideLookPitchAngle, -0.65, 0.72);
+  lastPointerClientX = pointerMoveEvent.clientX;
+  lastPointerClientY = pointerMoveEvent.clientY;
+});
+
+applyTimeOfDayLighting(timeOfDayNormalized);
+windSpeedValue = (parseInt(windSpeedSliderElement.value,10)/100)*8.0;
+windSpeedValueLabelElement.textContent = windSpeedValue.toFixed(1)+' m/s';
+windDirectionValueLabelElement.textContent = formatWindDirectionLabel(windDirectionDegrees);
+recalculateWindVector();
+
+const clockInstance = new THREE.Clock();
+let frameCountForFps = 0;
+let lastFpsCheckTimestamp = performance.now();
+let adaptivePixelRatioValue = Math.min(window.devicePixelRatio, 2);
+let lowFpsStreakCounter = 0;
+
+function animateScene(){
+  requestAnimationFrame(animateScene);
+  const deltaTime = Math.min(clockInstance.getDelta(), 0.05);
+  const elapsedTime = clockInstance.elapsedTime;
+
+  for(let balloonUpdateIndex=0; balloonUpdateIndex<activeBalloonInstances; balloonUpdateIndex++){
+    const balloonPosRef = balloonPositionArray[balloonUpdateIndex];
+    const windInfluence = balloonWindInfluenceArray[balloonUpdateIndex];
+    const altitudeWindBoost = 1.0 + THREE.MathUtils.clamp(balloonPosRef.y / 220, 0, 1) * 0.9;
+    balloonPosRef.x += windVectorX * deltaTime * windInfluence * altitudeWindBoost;
+    balloonPosRef.z += windVectorZ * deltaTime * windInfluence * altitudeWindBoost;
+
+    if(balloonPosRef.y < 165){
+      balloonPosRef.y += balloonRiseSpeedArray[balloonUpdateIndex] * deltaTime * (balloonFlameDurationArray[balloonUpdateIndex] > 0 ? 1.6 : 1.0);
+    } else {
+      balloonPosRef.y += Math.sin(elapsedTime*0.22 + balloonSwayPhaseArray[balloonUpdateIndex]) * deltaTime * 0.18;
+      balloonRiseSpeedArray[balloonUpdateIndex] = THREE.MathUtils.lerp(balloonRiseSpeedArray[balloonUpdateIndex], 0.05, deltaTime*0.2);
+    }
+
+    if(balloonPosRef.x > 680) balloonPosRef.x = -680;
+    if(balloonPosRef.x < -680) balloonPosRef.x = 680;
+    if(balloonPosRef.z > 680) balloonPosRef.z = -680;
+    if(balloonPosRef.z < -680) balloonPosRef.z = 680;
+
+    if(balloonFlameDurationArray[balloonUpdateIndex] > 0){
+      balloonFlameDurationArray[balloonUpdateIndex] -= deltaTime;
+      if(balloonFlameDurationArray[balloonUpdateIndex] <= 0){
+        balloonFlameTimerArray[balloonUpdateIndex] = 1.8 + Math.random()*4.2;
+      }
+    } else {
+      balloonFlameTimerArray[balloonUpdateIndex] -= deltaTime;
+      if(balloonFlameTimerArray[balloonUpdateIndex] <= 0){
+        balloonFlameDurationArray[balloonUpdateIndex] = 0.32 + Math.random()*0.62;
+      }
+    }
+  }
+
+  updateBalloonInstanceMatrices();
+
+  if(currentCameraMode === 'orbit'){
+    orbitControlInstance.update();
+  } else {
+    const rideBasketPos = balloonPositionArray[rideAlongBalloonIndex];
+    if(rideBasketPos){
+      const rideEyePosition = new THREE.Vector3(
+        rideBasketPos.x + Math.sin(elapsedTime*0.35 + balloonSwayPhaseArray[rideAlongBalloonIndex])*0.25,
+        rideBasketPos.y - balloonScaleArray[rideAlongBalloonIndex]*2.18 + 0.18,
+        rideBasketPos.z + Math.cos(elapsedTime*0.31 + balloonSwayPhaseArray[rideAlongBalloonIndex])*0.25
+      );
+      perspectiveCamera.position.copy(rideEyePosition);
+      const lookDir = new THREE.Vector3();
+      lookDir.x = Math.sin(rideLookYawAngle) * Math.cos(rideLookPitchAngle);
+      lookDir.y = Math.sin(rideLookPitchAngle);
+      lookDir.z = Math.cos(rideLookYawAngle) * Math.cos(rideLookPitchAngle);
+      const lookTarget = rideEyePosition.clone().add(lookDir.multiplyScalar(120));
+      perspectiveCamera.lookAt(lookTarget);
+      if(balloonFlameDurationArray[rideAlongBalloonIndex] > 0){
+        flamePointLight.position.copy(rideEyePosition).add(new THREE.Vector3(0,1.2,0));
+        flamePointLight.intensity = 2.2 + Math.random()*2.5;
+        flamePointLight.distance = 26;
+      } else {
+        flamePointLight.intensity = THREE.MathUtils.lerp(flamePointLight.intensity, 0, deltaTime*8);
+      }
+    }
+  }
+
+  if(currentCameraMode !== 'ride'){
+    flamePointLight.intensity = 0;
+  }
+
+  webGLRenderer.render(sceneThree, perspectiveCamera);
+
+  frameCountForFps++;
+  const nowTimestamp = performance.now();
+  if(nowTimestamp - lastFpsCheckTimestamp > 1000){
+    const measuredFps = frameCountForFps * 1000 / (nowTimestamp - lastFpsCheckTimestamp);
+    frameCountForFps = 0;
+    lastFpsCheckTimestamp = nowTimestamp;
+    if(measuredFps < 48){
+      lowFpsStreakCounter++;
+      if(lowFpsStreakCounter > 2){
+        if(adaptivePixelRatioValue > 0.85){
+          adaptivePixelRatioValue = Math.max(0.75, adaptivePixelRatioValue - 0.2);
+          webGLRenderer.setPixelRatio(adaptivePixelRatioValue);
+        } else if(activeBalloonInstances > 36){
+          activeBalloonInstances = Math.max(32, activeBalloonInstances - 8);
+          balloonCountSliderElement.value = activeBalloonInstances.toString();
+          balloonCountValueLabelElement.textContent = activeBalloonInstances.toString();
+          envelopeInstancedMesh.count = activeBalloonInstances;
+          basketInstancedMesh.count = activeBalloonInstances;
+          flameInstancedMesh.count = activeBalloonInstances;
+        }
+        lowFpsStreakCounter = 0;
+      }
+    } else if(measuredFps > 56){
+      lowFpsStreakCounter = Math.max(0, lowFpsStreakCounter-1);
+      if(adaptivePixelRatioValue < Math.min(window.devicePixelRatio,2) - 0.05){
+        adaptivePixelRatioValue = Math.min(Math.min(window.devicePixelRatio,2), adaptivePixelRatioValue + 0.05);
+        webGLRenderer.setPixelRatio(adaptivePixelRatioValue);
+      }
+    }
+  }
+}
+
+window.addEventListener('resize', ()=>{
+  perspectiveCamera.aspect = window.innerWidth / window.innerHeight;
+  perspectiveCamera.updateProjectionMatrix();
+  webGLRenderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+animateScene();
+</script>
+</body>
+</html>
